@@ -20,11 +20,7 @@ import org.sonar.api.batch.scm.BlameCommand;
 import org.sonar.api.batch.scm.BlameLine;
 import org.sonar.api.utils.TempFolder;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -125,10 +121,32 @@ public class TfsBlameCommand extends BlameCommand {
       throw Throwables.propagate(e);
     } finally {
       if (process != null) {
+        captureErrorStream(process);
         Closeables.closeQuietly(process.getInputStream());
         Closeables.closeQuietly(process.getOutputStream());
         Closeables.closeQuietly(process.getErrorStream());
+        process.destroy();
       }
+    }
+  }
+
+
+  private static void captureErrorStream(Process process) {
+    try {
+      InputStream errorStream = process.getErrorStream();
+      BufferedReader errStream = new BufferedReader(new InputStreamReader(errorStream, Charsets.UTF_8));
+      int readBytesCount = errorStream.available();
+      char[] errorChars = new char[readBytesCount];
+
+      if (readBytesCount > 0) {
+        errStream.read(errorChars);
+        String errorString = new String(errorChars);
+        if(!errorString.isEmpty()) {
+          LOG.error(errorString);
+        }
+      }
+    } catch (IOException e) {
+      LOG.error("Exception thrown while getting error Stream data - " + e);
     }
   }
 
